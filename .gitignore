@@ -1,0 +1,24 @@
+# IGNORER LES GROS FICHIERS (ils restent sur votre disque)
+ONOS-IDS-main/dataset/captures/session_12attaques_20260327_000628/all_attacks.pcap
+ONOS-IDS-main/dataset/*.csv
+ONOS-IDS-main/ids_service/models/*.pkl
+ONOS-IDS-main/outputs/*.pkl
+SDN-ML-CONTROLLER-main-RYU/ml_models/*.pkl
+SDN-ML-CONTROLLER-main-RYU/controllers/*.pkl
+SDN-ML-CONTROLLER-main-RYU/data/preprocessed/*.pkl
+
+# Fichiers temporaires
+*.log
+*.tmp
+__pycache__/
+*.pyc
+
+# Environnement Python
+ryu-env39/
+venv/
+.env
+
+# Autres
+.DS_Store
+.vscode/
+.idea/

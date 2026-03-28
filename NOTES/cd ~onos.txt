@@ -1,0 +1,33 @@
+cd ~/onos
+bazel run onos-local -- clean debug
+# Attends de voir : "Application org.onosproject.openflow has been activated"
+
+
+source ~/ryu-env38/bin/activate
+cd ~/onos_open/ids_service
+uvicorn main:app --host 0.0.0.0 --port 8000
+# Vérifie : curl http://localhost:8000/health
+
+
+# Active OpenFlow
+curl -X POST -u onos:rocks \
+  "http://localhost:8181/onos/v1/applications/org.onosproject.openflow/active"
+
+# Active Reactive Forwarding
+curl -X POST -u onos:rocks \
+  "http://localhost:8181/onos/v1/applications/org.onosproject.fwd/active"
+
+# Déploie l'app IDS
+curl -X POST -u onos:rocks \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @/home/wissal/onos/bazel-bin/apps/idsapp/onos-apps-idsapp-oar.oar \
+  "http://localhost:8181/onos/v1/applications?activate=true"
+
+# Vérifie que l'app est active
+curl -s -u onos:rocks \
+  http://localhost:8181/onos/v1/applications/org.onosproject.idsapp \
+  | python3 -m json.tool | grep -E "state|name|origin"
+
+# Surveille les alertes IDS en temps réel
+tail -f /tmp/onos-3.0.0-SNAPSHOT/apache-karaf-4.2.14/data/log/karaf.log \
+  | grep "IDS"

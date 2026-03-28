@@ -1,0 +1,16 @@
+{
+  "0": "ARP_SPOOFING",
+  "1": "BENIGN",
+  "2": "DDOS",
+  "3": "DHCP_SPOOFING",
+  "4": "IP_SPOOFING",
+  "5": "MAC_FLOODING",
+  "6": "PORT_SCAN",
+  "7": "ROUTING_ATTACK",
+  "8": "SESSION_HIJACKING",
+  "9": "SQL_INJECTION",
+  "10": "SSL_STRIPPING",
+  "11": "STP_SPOOFING",
+  "12": "SYN_FLOOD",
+  "13": "XSS"
+}

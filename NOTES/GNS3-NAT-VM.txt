@@ -1,0 +1,275 @@
+cd ~/onos
+bazel run onos-local -- clean debug
+# Attends de voir : "Application org.onosproject.openflow has been activated"
+
+
+source ~/ryu-env38/bin/activate
+cd ~/onos_open/ids_service
+uvicorn main:app --host 0.0.0.0 --port 8000
+# Vérifie : curl http://localhost:8000/health
+
+
+# Active OpenFlow
+curl -X POST -u onos:rocks \
+  "http://localhost:8181/onos/v1/applications/org.onosproject.openflow/active"
+
+# Active Reactive Forwarding
+curl -X POST -u onos:rocks \
+  "http://localhost:8181/onos/v1/applications/org.onosproject.fwd/active"
+
+# Déploie l'app IDS
+curl -X POST -u onos:rocks \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @/home/wissal/onos/bazel-bin/apps/idsapp/onos-apps-idsapp-oar.oar \
+  "http://localhost:8181/onos/v1/applications?activate=true"
+
+# Vérifie que l'app est active
+curl -s -u onos:rocks \
+  http://localhost:8181/onos/v1/applications/org.onosproject.idsapp \
+  | python3 -m json.tool | grep -E "state|name|origin"
+
+# Surveille les alertes IDS en temps réel
+tail -f /tmp/onos-3.0.0-SNAPSHOT/apache-karaf-4.2.14/data/log/karaf.log \
+  | grep "IDS"
+0.0.0.0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--Pour envoyer et reçois des fichiers : 
+sudo apt-get install -y openssh-server
+sudo systemctl start ssh
+sudo systemctl enable ssh
+Systemctl start ssh
+
+
+
+
+ONOS AVEC MININET :
+
+onos2 
+docker exec -it onos2 /root/onos/apache-karaf-4.2.14/bin/client
+
+nano topo.py : cree fichier python de mininet 
+sudo python3 ton_fichier.py : lancer mininet
+exit
+mn -c 
+
+
+
+application config onos : 
+
+dans kraf :(terminal onos: docker exec -it onos2 /root/onos/apache-karaf-4.2.14/bin/client )
+
+
+
+mvn clean package -DskipTests
+
+
+http://localhost:8181/onos/ovsconfig/ovs-config-panel.html?deviceId=of:0000000000000001
+
+
+
+
+
+bundle:list | grep ovs-config
+bundle:uninstall <ID>
+bundle:install file:/root/ovs-config-app/target/ovs-config-app-1.0-SNAPSHOT.jar
+bundle:start <ID>
+
+
+bundle:start 245
+bundle:headers 245 | grep -i web
+http:list | grep ovs
+curl -u onos:rocks http://localhost:8181/onos/ovsconfig/bridge/s1
+
+
+
+docker exec -it onos2 /bin/bash
+cd /root/ovs-config-app
+
+
+
+sh ovs-vsctl set-manager tcp:172.18.0.1:6640
+
+
+
+
+
+
+
+
+pr la config ovs dans onos par les api 
+
+# Les 3 apps indispensables pour que OVSDB fonctionne
+onos-app install ovsdb-base
+onos-app install drivers.ovsdb
+onos-app install ovsdbrest
+
+# Sur chaque switch OVS — ouvrir le port OVSDB
+ovs-vsctl set-manager tcp:<IP_ONOS>:664
+
+
+lewim na7i lldp bech iwali stable o nahiw mochklit nat :
+
+karaf@root > links
+karaf@root > cfg set org.onosproject.provider.host.impl.HostLocationProvider hostRemovalEnabled false
+karaf@root > cfg set org.onosproject.provider.lldp.impl.LldpLinkProvider useBddp false
+karaf@root > app deactivate org.onosproject.lldpprovider
+Deactivated org.onosproject.lldpprovider
+karaf@root > app activate org.onosproject.lldpprovider
+Activated org.onosproject.lldpprovider
+
+
+
+ajouter intents :    add-host-intent 00:50:79:66:68:00/None 00:50:79:66:68:01/None
+
+# Supprimer ancienne IP
+ip addr flush dev eth0
+
+# Obtenir IP via DHCP du NAT
+udhcpc -i eth0
+# Voir l'IP obtenue
+ip addr show eth0
+ip route show
+
+# Ajouter route vers 192.168.1.x via la GNS3 VM
+ip route add 192.168.1.0/24 via 192.168.122.1 dev eth0
+
+# Sur OVS-1 :
+# Définir ONOS comme contrôleur
+ovs-vsctl set-controller br0 tcp:192.168.1.10:6653      ( IP_DE_ONOS: 192.168.1.10)
+ovs-vsctl set bridge br0 protocols=OpenFlow13
+
+# Voir si le contrôleur est connecté
+ovs-vsctl get-controller br0
+
+
+# Voir l'état du switch
+ovs-vsctl show
+
+
+# Vérifier la connexion
+ovs-vsctl show | grep -A3 "Controller"
+
+# Surveiller
+tail -f /var/log/openvswitch/ovs-vswitchd.log | grep -E "connected|unreachable"
+
+
+# Tester vers la VM Ubuntu ONOS
+ping -c 3 192.168.1.10
+
+
+commandes docker :
+docker restart <nom_du_conteneur>
+docker start <nom_du_conteneur>
+
+
+NAVIGATEUR 
+http://localhost:8181/onos/ui
+Login : onos
+Mot de passe : rocks
+
+
+docker stop <nom_du_conteneur>
+docker logs onos
+
+Cree un controlleur 
+docker run -d --name onos \
+  -p 8181:8181 \
+  -p 8101:8101 \
+  -p 6653:6653 \
+  onosproject/onos:latest
+
+Vérifie dans ONOS :ONOS tourne sur Apache Karaf
+-docker exec -it onos /root/onos/apache-karaf-4.2.9/bin/client
+-devices
+-ports of:00003241df04a741 (voir ports d'un sw)
+-apps -s (voir apps active)
+-links  # Voir les liens entre switches
+-hosts # Voir PC1 et PC2
+-flows # Voir toutes les règles installées
+-topology # Voir la topologie complète
+-add-host-intent 00:50:79:66:68:00/None 00:50:79:66:68:01/None     # Connecter PC1 ↔ PC2(cree intent) 
+-intents # Voir les intents actifs
+-remove-intent 0x51 # Supprimer un intent
+
+
+
+
+Au lieu d'entrer dans chaque switch :
+👉 Tu fais :
+soit via ONOS CLI / json file 
+soit via API REST
+soit via une application ONOS
+ 
+
+# Lister tous les switches API 
+curl -u onos:rocks http://localhost:8181/onos/v1/devices
+
+# Voir un switch spécifique
+curl -u onos:rocks http://localhost:8181/onos/v1/devices/of:0000000000000001
+
+rest api voir ports de sw : curl -u onos:rocks \http://localhost:8181/onos/v1/devices/of:00003241df04a741/ports
+
+conf de pc's : ip 10.0.0.1/24
+
+
+
+Problem de port NAT (lldp):
+# Supprimer les vieux liens incorrects
+app deactivate org.onosproject.lldpprovider
+app activate org.onosproject.lldpprovider
+
+ovs-ofctl -O OpenFlow13 mod-port br0 eth0 up
+
+ovs-ofctl -O OpenFlow13 show br0
+(port live -activve )
+
+# Garder eth0, eth1, eth2, eth3, eth4 — désactiver eth5 à eth15
+for i in 5 6 7 8 9 10 11 12 13 14 15; do
+  ovs-ofctl -O OpenFlow13 mod-port br0 eth$i down
+done
+
+
+
+
+Dans Karaf —changer settings :
+
+# 1. flowTimeout = 0 (règles permanentes)
+cfg set org.onosproject.fwd.ReactiveForwarding flowTimeout 0
+
+# 2. matchIpv4Address = true (règles basées sur IP)
+cfg set org.onosproject.fwd.ReactiveForwarding matchIpv4Address true
+
+# 3. allowExtraneousRules = true (garder les règles manuelles)
+cfg set org.onosproject.net.flow.impl.FlowRuleManager allowExtraneousRules true
+
+# 4. portStatsPollFrequency = 2 (stats toutes les 2 sec)
+cfg set org.onosproject.provider.of.device.impl.OpenFlowDeviceProvider portStatsPollFrequency 2
+
+# Voir la config de ReactiveForwarding
+cfg get org.onosproject.fwd.ReactiveForwarding
+
+# Voir tous les settings modifiés
+cfg list
+
+
+
+
+
+
+
+
+
+
