@@ -1,0 +1,9 @@
+<app name="org.onosproject.idsapp"
+     origin="Alliance software"
+     version="1.0.0"
+     category="Security"
+     url="http://onosproject.org"
+     title="IDS AI App"
+     readme="Detection d intrusion temps reel — 14 classes d attaques. Alert uniquement, aucun blocage automatique.">
+    <artifact>mvn:org.onosproject/ids-onos-app/1.0.0/oar</artifact>
+</app>

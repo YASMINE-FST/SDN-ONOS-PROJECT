@@ -39,7 +39,6 @@ def _tsne_compat(**base_kw):
         extra["max_iter"] = 500
     elif "n_iter" in params:
         extra["n_iter"] = 500
-    # sinon on laisse la valeur par défaut (vieilles versions)
     return TSNE(**base_kw, **extra)
 
 # ═══════════════════════════ CONFIG ═══════════════════════════
@@ -54,9 +53,8 @@ COLOR_MAP = {
     "SSL_STRIPPING":"#f0c000","SESSION_HIJACKING":"#818cf8",
 }
 LABEL_ORDER = [
-    "BENIGN","ARP_SPOOFING","STP_SPOOFING","MAC_FLOODING","DHCP_SPOOFING",
-    "IP_SPOOFING","SYN_FLOOD","DDOS","PORT_SCAN","ROUTING_ATTACK",
-    "SQL_INJECTION","XSS","SSL_STRIPPING","SESSION_HIJACKING"
+    "ARP_SPOOFING", "BENIGN", "DDOS", "DHCP_SPOOFING", "IP_SPOOFING",
+    "MAC_FLOODING", "PORT_SCAN", "ROUTING_ATTACK", "STP_SPOOFING", "SYN_FLOOD",
 ]
 MCOLS = ["#58a6ff","#ffa657","#3fb950"]
 os.makedirs("outputs", exist_ok=True)
@@ -73,7 +71,7 @@ def style_ax(ax, title="", xlabel="", ylabel=""):
 
 # ═══════════════════════════ LOAD ═══════════════════════════
 print("Loading dataset...")
-df = pd.read_csv("dataset/ids_onos_dataset.csv")
+df = pd.read_csv("dataset/hybrid_dataset.csv")
 FEATURE_COLS = [c for c in df.columns if c not in ["label","label_encoded"]]
 le = LabelEncoder(); le.fit(LABEL_ORDER)
 df["label_enc"] = le.transform(df["label"])
@@ -132,7 +130,7 @@ for label in LABEL_ORDER:
 style_ax(ax, f"PCA 2D ({pca.explained_variance_ratio_.sum()*100:.1f}% var)", "PC1", "PC2")
 ax.legend(fontsize=5.5, loc="upper right", facecolor=BG, edgecolor=GRID, labelcolor=TEXT2, ncol=2, markerscale=1.5)
 
-# 1d — t-SNE 2D  ← fix compat toutes versions sklearn
+# 1d — t-SNE 2D
 ax = fig1.add_subplot(gs1[1, 1])
 s_tsne = df.sample(2500, random_state=42)
 Xt = StandardScaler().fit_transform(s_tsne[DISC])
@@ -152,7 +150,10 @@ ax = fig1.add_subplot(gs1[1, 2])
 data_box=[]; labels_box=[]; colors_box=[]
 for label in LABEL_ORDER:
     v = df[df["label"]==label]["flow_pkts_per_sec"]
-    data_box.append(v.clip(0, np.percentile(v,98)))
+    if len(v) > 0:
+        data_box.append(v.clip(0, np.percentile(v,98)))
+    else:
+        data_box.append(pd.Series([0]))
     labels_box.append(label); colors_box.append(COLOR_MAP[label])
 bp = ax.boxplot(data_box, vert=False, patch_artist=True,
                 medianprops=dict(color="white",linewidth=1.5),
@@ -206,10 +207,26 @@ scaler = StandardScaler()
 X_train_s = scaler.fit_transform(X_train)
 X_test_s  = scaler.transform(X_test)
 
+# ── FIX XGBoost : re-encoder y en labels consécutifs [0..N-1] ─────────────────
+# XGBoost exige des classes CONSÉCUTIVES à partir de 0.
+# Si certaines classes sont absentes d'un fold, les indices sautent (ex: 0..7,11,12)
+# → ValueError. On remappe proprement une fois pour toutes.
+le_consec = LabelEncoder()
+y_train_c = le_consec.fit_transform(y_train)   # toujours [0..13] sur le train complet
+y_test_c  = le_consec.transform(y_test)
+
+# Mapping consec_idx → original_idx → nom de classe
+consec_to_orig  = le_consec.classes_            # consec_to_orig[i] = label original
+orig_class_names = le.classes_[consec_to_orig]  # nom des classes dans l'ordre consécutif
+N_CLASSES = len(orig_class_names)
+ALL_LABELS = list(range(N_CLASSES))
+print(f"  Classes remappées consécutivement : {N_CLASSES} classes")
+# ──────────────────────────────────────────────────────────────────────────────
+
 MODELS = {
     "Random Forest": RandomForestClassifier(n_estimators=200,n_jobs=-1,random_state=42,min_samples_leaf=2),
     "XGBoost":       XGBClassifier(n_estimators=200,learning_rate=0.1,max_depth=8,
-                                    n_jobs=-1,random_state=42,eval_metric="mlogloss",verbosity=0),
+                                    n_jobs=1,random_state=42,eval_metric="mlogloss",verbosity=0),
     "Decision Tree": DecisionTreeClassifier(max_depth=20,random_state=42),
 }
 
@@ -219,20 +236,34 @@ skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 for name, model in MODELS.items():
     t0 = time.time()
     print(f"  [{name}] cross-validating...")
-    cv = cross_validate(model, X_train_s, y_train, cv=skf,
+    # XGBoost CV : n_jobs=1 pour éviter les conflits de fork avec ses propres threads
+    cv_jobs = 1 if name == "XGBoost" else -1
+    cv = cross_validate(model, X_train_s, y_train_c, cv=skf,
                         scoring=["accuracy","f1_macro","precision_macro","recall_macro"],
-                        n_jobs=-1, return_train_score=True)
+                        n_jobs=cv_jobs, return_train_score=True)
     cv_results[name] = cv
     print(f"  [{name}] fitting on full train...")
-    model.fit(X_train_s, y_train)
-    y_pred = model.predict(X_test_s)
-    acc=accuracy_score(y_test,y_pred); f1=f1_score(y_test,y_pred,average="macro")
-    prec=precision_score(y_test,y_pred,average="macro"); rec=recall_score(y_test,y_pred,average="macro")
-    cm=confusion_matrix(y_test,y_pred)
-    cr=classification_report(y_test,y_pred,target_names=le.classes_,output_dict=True)
-    elapsed=time.time()-t0
-    results[name]={"model":model,"y_pred":y_pred,"acc":acc,"f1":f1,
-                   "prec":prec,"rec":rec,"cm":cm,"cr":cr,"time":elapsed}
+    model.fit(X_train_s, y_train_c)
+    y_pred_c = model.predict(X_test_s)
+
+    # Métriques — labels consécutifs, noms originaux
+    acc  = accuracy_score(y_test_c, y_pred_c)
+    f1   = f1_score(y_test_c, y_pred_c, average="macro",
+                    labels=ALL_LABELS, zero_division=0)
+    prec = precision_score(y_test_c, y_pred_c, average="macro",
+                           labels=ALL_LABELS, zero_division=0)
+    rec  = recall_score(y_test_c, y_pred_c, average="macro",
+                        labels=ALL_LABELS, zero_division=0)
+    cm   = confusion_matrix(y_test_c, y_pred_c, labels=ALL_LABELS)
+    cr   = classification_report(y_test_c, y_pred_c,
+                                  labels=ALL_LABELS,
+                                  target_names=orig_class_names,
+                                  output_dict=True,
+                                  zero_division=0)
+
+    elapsed = time.time() - t0
+    results[name] = {"model":model,"y_pred":y_pred_c,"acc":acc,"f1":f1,
+                     "prec":prec,"rec":rec,"cm":cm,"cr":cr,"time":elapsed}
     print(f"    Acc={acc:.4f}  F1={f1:.4f}  CV_F1={cv['test_f1_macro'].mean():.4f}  ({elapsed:.1f}s)")
 
 joblib.dump(results["Random Forest"]["model"], "outputs/model_rf.pkl")
@@ -301,11 +332,11 @@ ax = fig2.add_subplot(gs2[1, 0])
 cm_norm=results["Random Forest"]["cm"].astype(float)/results["Random Forest"]["cm"].sum(axis=1,keepdims=True)
 cmap_cm=LinearSegmentedColormap.from_list("cm",["#161b22","#1f6feb","#58a6ff"])
 im=ax.imshow(cm_norm,cmap=cmap_cm,aspect="auto",vmin=0,vmax=1)
-ax.set_xticks(range(len(le.classes_))); ax.set_yticks(range(len(le.classes_)))
-ax.set_xticklabels(le.classes_,rotation=55,ha="right",fontsize=5.5,color=TEXT2)
-ax.set_yticklabels(le.classes_,fontsize=5.5,color=TEXT2)
-for i in range(len(le.classes_)):
-    for j in range(len(le.classes_)):
+ax.set_xticks(range(N_CLASSES)); ax.set_yticks(range(N_CLASSES))
+ax.set_xticklabels(orig_class_names,rotation=55,ha="right",fontsize=5.5,color=TEXT2)
+ax.set_yticklabels(orig_class_names,fontsize=5.5,color=TEXT2)
+for i in range(N_CLASSES):
+    for j in range(N_CLASSES):
         v=cm_norm[i,j]
         if v>0.01: ax.text(j,i,f"{v:.2f}",ha="center",va="center",
                            color="white" if v>0.4 else TEXT2, fontsize=5)
@@ -318,11 +349,11 @@ ax = fig2.add_subplot(gs2[1, 1])
 cm_xgb_n=results["XGBoost"]["cm"].astype(float)/results["XGBoost"]["cm"].sum(axis=1,keepdims=True)
 cmap_cm2=LinearSegmentedColormap.from_list("cm2",["#161b22","#b45309","#ffa657"])
 im2=ax.imshow(cm_xgb_n,cmap=cmap_cm2,aspect="auto",vmin=0,vmax=1)
-ax.set_xticks(range(len(le.classes_))); ax.set_yticks(range(len(le.classes_)))
-ax.set_xticklabels(le.classes_,rotation=55,ha="right",fontsize=5.5,color=TEXT2)
-ax.set_yticklabels(le.classes_,fontsize=5.5,color=TEXT2)
-for i in range(len(le.classes_)):
-    for j in range(len(le.classes_)):
+ax.set_xticks(range(N_CLASSES)); ax.set_yticks(range(N_CLASSES))
+ax.set_xticklabels(orig_class_names,rotation=55,ha="right",fontsize=5.5,color=TEXT2)
+ax.set_yticklabels(orig_class_names,fontsize=5.5,color=TEXT2)
+for i in range(N_CLASSES):
+    for j in range(N_CLASSES):
         v=cm_xgb_n[i,j]
         if v>0.01: ax.text(j,i,f"{v:.2f}",ha="center",va="center",
                            color="white" if v>0.4 else TEXT2, fontsize=5)
@@ -333,7 +364,7 @@ ax.set_title("Confusion matrix — XGBoost (normalisée)",color=TEXT,fontsize=9,
 # 2f — F1 par classe RF vs XGB
 ax = fig2.add_subplot(gs2[1, 2])
 cr_rf=results["Random Forest"]["cr"]; cr_xgb=results["XGBoost"]["cr"]
-classes_plot=list(le.classes_)
+classes_plot=list(orig_class_names)
 f1_rf =[cr_rf[c]["f1-score"]  for c in classes_plot]
 f1_xgb=[cr_xgb[c]["f1-score"] for c in classes_plot]
 x_c=np.arange(len(classes_plot)); w=0.35
@@ -391,9 +422,9 @@ print("\nBuilding Fig 3 — Per-class report...")
 fig3, axes = plt.subplots(1,3, figsize=(22,9), facecolor=BG)
 for ax_idx,(name,col) in enumerate(zip(["Random Forest","XGBoost","Decision Tree"],MCOLS)):
     ax=axes[ax_idx]; ax.set_facecolor(BG2)
-    cr=results[name]["cr"]; classes_r=list(le.classes_)
+    cr=results[name]["cr"]; classes_r=list(orig_class_names)
     metrics_r=["precision","recall","f1-score"]
-    data_r=np.array([[cr[c][m] for m in metrics_r] for c in classes_r])
+    data_r=np.array([[cr[c][m] for c in classes_r] for m in metrics_r]).T
     x_r=np.arange(len(classes_r)); w_r=0.26
     for mi,(metric,bc) in enumerate(zip(metrics_r,["#58a6ff","#ffa657","#3fb950"])):
         ax.bar(x_r+mi*w_r, data_r[:,mi], w_r, color=bc, alpha=0.85, edgecolor="none", label=metric.capitalize())

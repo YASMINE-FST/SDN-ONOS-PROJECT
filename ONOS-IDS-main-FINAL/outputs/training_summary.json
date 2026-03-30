@@ -1,0 +1,29 @@
+{
+  "Random Forest": {
+    "test_accuracy": 0.99797,
+    "test_f1_macro": 0.9985,
+    "test_precision": 0.99851,
+    "test_recall": 0.9985,
+    "cv_f1_mean": 0.99795,
+    "cv_f1_std": 0.00051,
+    "training_time_s": 19.29
+  },
+  "XGBoost": {
+    "test_accuracy": 0.99932,
+    "test_f1_macro": 0.9995,
+    "test_precision": 0.9995,
+    "test_recall": 0.9995,
+    "cv_f1_mean": 0.99915,
+    "cv_f1_std": 0.00022,
+    "training_time_s": 51.62
+  },
+  "Decision Tree": {
+    "test_accuracy": 0.99689,
+    "test_f1_macro": 0.9977,
+    "test_precision": 0.9977,
+    "test_recall": 0.9977,
+    "cv_f1_mean": 0.99708,
+    "cv_f1_std": 0.00038,
+    "training_time_s": 2.04
+  }
+}
